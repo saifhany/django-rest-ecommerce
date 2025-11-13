@@ -1,0 +1,57 @@
+version: "3.9"
+services:
+  web:
+    build: .
+    container_name: django_app
+    command: gunicorn core.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - ".:/app"
+    ports:
+      - "8000:8000"
+    env_file:
+      - ".env"
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: django_user
+      POSTGRES_PASSWORD: django_pass
+      POSTGRES_DB: django_auth
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  celery:
+    build: .
+    container_name: celery_worker
+    command: celery -A core worker -l info
+    volumes:
+      - ".:/app"
+    depends_on:
+      - redis
+      - db
+      - web
+
+  flower:
+    build: .
+    container_name: celery_flower
+    command: celery -A core flower --broker=redis://redis:6379/0 --port=5555
+    volumes:
+      - ".:/app"
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - web
+
+volumes:
+  postgres_data:
